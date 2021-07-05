@@ -211,7 +211,7 @@ struct async_result<experimental::blocking_run_t<Executor>, R(T)>
         std::optional<T> result;
         std::atomic<bool> done{false};
         std::move(initiation)(
-                [&](T t)
+                [&](T t) ASIO_NOEXCEPT
                 {
                     result = std::move(t);
                     done.store(true);
@@ -237,7 +237,7 @@ struct async_result<experimental::blocking_run_t<Executor>, R(std::exception_ptr
         std::exception_ptr error;
         std::atomic<bool> done{false};
         std::move(initiation)(
-                [&](std::exception_ptr t)
+                [&](std::exception_ptr t) ASIO_NOEXCEPT
                 {
                     error = t;
                     done.store(true);
@@ -263,7 +263,7 @@ struct async_result<experimental::blocking_run_t<Executor>, R(error_code)>
         error_code error;
         std::atomic<bool> done{false};
         std::move(initiation)(
-                [&](error_code  t)
+                [&](error_code  t) ASIO_NOEXCEPT
                 {
                     error = t;
                     done.store(true);
@@ -380,7 +380,6 @@ inline void do_blocking_run_for(any_io_executor exec, std::atomic<bool> & done, 
 }
 
 
-
 template <typename Rep, typename Period, typename Executor, typename R, typename T>
 struct async_result<detail::experimental::blocking_run_for_impl<Rep, Period, Executor>, R(T)>
 {
@@ -395,7 +394,7 @@ struct async_result<detail::experimental::blocking_run_for_impl<Rep, Period, Exe
         std::optional<T> result;
         std::atomic<bool> done{false};
         std::move(initiation)(
-                [&](T t)
+                [&](T t) ASIO_NOEXCEPT
                 {
                     result = std::move(t);
                     done.store(true);
@@ -421,7 +420,7 @@ struct async_result<detail::experimental::blocking_run_for_impl<Rep, Period, Exe
         std::exception_ptr error;
         std::atomic<bool> done{false};
         std::move(initiation)(
-                [&](std::exception_ptr t)
+                [&](std::exception_ptr t) ASIO_NOEXCEPT
                 {
                     error = t;
                     done.store(true);
@@ -448,7 +447,7 @@ struct async_result<detail::experimental::blocking_run_for_impl<Rep, Period, Exe
         error_code error;
         std::atomic<bool> done{false};
         std::move(initiation)(
-                [&](error_code  t)
+                [&](error_code t) ASIO_NOEXCEPT
                 {
                     error = t;
                     done.store(true);
@@ -480,7 +479,7 @@ struct async_result<detail::experimental::blocking_run_for_impl<Rep, Period, Exe
         std::atomic<bool> done{false};
 
         std::move(initiation)(
-                [&](std::exception_ptr ex, T value)
+                [&](std::exception_ptr ex, T value) ASIO_NOEXCEPT
                 {
                     result = std::move(value);
                     error = ex;
@@ -509,7 +508,7 @@ struct async_result<detail::experimental::blocking_run_for_impl<Rep, Period, Exe
         std::optional<T> result;
         std::atomic<bool> done{false};
         std::move(initiation)(
-                [&](error_code ec, T value)
+                [&](error_code ec, T value) ASIO_NOEXCEPT
                 {
                     result = std::move(value);
                     error = ec;
@@ -565,7 +564,6 @@ inline void do_blocking_run_until(any_io_executor exec, std::atomic<bool> & done
 }
 
 
-
 template<typename Clock, typename Duration, typename Executor, typename R, typename T>
 struct async_result<detail::experimental::blocking_run_until_impl<Clock, Duration, Executor>, R(T)>
 {
@@ -580,7 +578,7 @@ struct async_result<detail::experimental::blocking_run_until_impl<Clock, Duratio
         std::optional<T> result;
         std::atomic<bool> done{false};
         std::move(initiation)(
-                [&](T t)
+                [&](T t) ASIO_NOEXCEPT
                 {
                     result = std::move(t);
                     done.store(true);
@@ -605,7 +603,7 @@ struct async_result<detail::experimental::blocking_run_until_impl<Clock, Duratio
         std::exception_ptr error;
         std::atomic<bool> done{false};
         std::move(initiation)(
-                [&](std::exception_ptr t)
+                [&](std::exception_ptr t) ASIO_NOEXCEPT
                 {
                     error = t;
                     done.store(true);
@@ -632,7 +630,7 @@ struct async_result<detail::experimental::blocking_run_until_impl<Clock, Duratio
         error_code error;
         std::atomic<bool> done{false};
         std::move(initiation)(
-                [&](error_code  t)
+                [&](error_code t) ASIO_NOEXCEPT
                 {
                     error = t;
                     done.store(true);
@@ -662,7 +660,7 @@ struct async_result<detail::experimental::blocking_run_until_impl<Clock, Duratio
         std::atomic<bool> done{false};
 
         std::move(initiation)(
-                [&](std::exception_ptr ex, T value)
+                [&](std::exception_ptr ex, T value) ASIO_NOEXCEPT
                 {
                     result = std::move(value);
                     error = ex;
@@ -694,7 +692,7 @@ struct async_result<detail::experimental::blocking_run_until_impl<Clock, Duratio
         std::optional<T> result;
         std::atomic<bool> done{false};
         std::move(initiation)(
-                [&](error_code ec, T value)
+                [&](error_code ec, T value) ASIO_NOEXCEPT
                 {
                     result = std::move(value);
                     error = ec;
@@ -730,7 +728,6 @@ inline void do_blocking_poll(io_context & ctx, std::atomic<bool> & done)
         {
             asio::post([ex = std::current_exception()]{std::rethrow_exception(ex);});
         }
-
 }
 
 inline void do_blocking_poll(io_context::executor_type exec, std::atomic<bool> & done)
@@ -764,7 +761,7 @@ struct async_result<experimental::blocking_poll_t<Executor>, R(T)>
         std::optional<T> result;
         std::atomic<bool> done{false};
         std::move(initiation)(
-                [&](T t)
+                [&](T t) ASIO_NOEXCEPT
                 {
                     result = std::move(t);
                     done.store(true);
@@ -790,7 +787,7 @@ struct async_result<experimental::blocking_poll_t<Executor>, R(std::exception_pt
         std::exception_ptr error;
         std::atomic<bool> done{false};
         std::move(initiation)(
-                [&](std::exception_ptr t)
+                [&](std::exception_ptr t) ASIO_NOEXCEPT
                 {
                     error = t;
                     done.store(true);
@@ -816,7 +813,7 @@ struct async_result<experimental::blocking_poll_t<Executor>, R(error_code)>
         error_code error;
         std::atomic<bool> done{false};
         std::move(initiation)(
-                [&](error_code  t)
+                [&](error_code  t) ASIO_NOEXCEPT
                 {
                     error = t;
                     done.store(true);
@@ -846,7 +843,7 @@ struct async_result<experimental::blocking_poll_t<Executor>, R(std::exception_pt
         std::atomic<bool> done{false};
 
         std::move(initiation)(
-                [&](std::exception_ptr ex, T value)
+                [&](std::exception_ptr ex, T value) ASIO_NOEXCEPT
                 {
                     result = std::move(value);
                     error = ex;
@@ -875,7 +872,7 @@ struct async_result<experimental::blocking_poll_t<Executor>, R(error_code, T)>
         std::optional<T> result;
         std::atomic<bool> done{false};
         std::move(initiation)(
-                [&](error_code ec, T value)
+                [&](error_code ec, T value) ASIO_NOEXCEPT
                 {
                     result = std::move(value);
                     error = ec;
@@ -948,7 +945,7 @@ struct async_result<detail::experimental::blocking_poll_for_impl<Rep, Period, Ex
         std::optional<T> result;
         std::atomic<bool> done{false};
         std::move(initiation)(
-                [&](T t)
+                [&](T t) ASIO_NOEXCEPT
                 {
                     result = std::move(t);
                     done.store(true);
@@ -974,7 +971,7 @@ struct async_result<detail::experimental::blocking_poll_for_impl<Rep, Period, Ex
         std::exception_ptr error;
         std::atomic<bool> done{false};
         std::move(initiation)(
-                [&](std::exception_ptr t)
+                [&](std::exception_ptr t) ASIO_NOEXCEPT
                 {
                     error = t;
                     done.store(true);
@@ -1001,7 +998,7 @@ struct async_result<detail::experimental::blocking_poll_for_impl<Rep, Period, Ex
         error_code error;
         std::atomic<bool> done{false};
         std::move(initiation)(
-                [&](error_code  t)
+                [&](error_code t) ASIO_NOEXCEPT
                 {
                     error = t;
                     done.store(true);
@@ -1033,7 +1030,7 @@ struct async_result<detail::experimental::blocking_poll_for_impl<Rep, Period, Ex
         std::atomic<bool> done{false};
 
         std::move(initiation)(
-                [&](std::exception_ptr ex, T value)
+                [&](std::exception_ptr ex, T value) ASIO_NOEXCEPT
                 {
                     result = std::move(value);
                     error = ex;
@@ -1062,7 +1059,7 @@ struct async_result<detail::experimental::blocking_poll_for_impl<Rep, Period, Ex
         std::optional<T> result;
         std::atomic<bool> done{false};
         std::move(initiation)(
-                [&](error_code ec, T value)
+                [&](error_code ec, T value) ASIO_NOEXCEPT
                 {
                     result = std::move(value);
                     error = ec;
@@ -1133,7 +1130,7 @@ struct async_result<detail::experimental::blocking_poll_until_impl<Clock, Durati
         std::optional<T> result;
         std::atomic<bool> done{false};
         std::move(initiation)(
-                [&](T t)
+                [&](T t) ASIO_NOEXCEPT
                 {
                     result = std::move(t);
                     done.store(true);
@@ -1158,7 +1155,7 @@ struct async_result<detail::experimental::blocking_poll_until_impl<Clock, Durati
         std::exception_ptr error;
         std::atomic<bool> done{false};
         std::move(initiation)(
-                [&](std::exception_ptr t)
+                [&](std::exception_ptr t) ASIO_NOEXCEPT
                 {
                     error = t;
                     done.store(true);
@@ -1185,7 +1182,7 @@ struct async_result<detail::experimental::blocking_poll_until_impl<Clock, Durati
         error_code error;
         std::atomic<bool> done{false};
         std::move(initiation)(
-                [&](error_code  t)
+                [&](error_code t) ASIO_NOEXCEPT
                 {
                     error = t;
                     done.store(true);
@@ -1215,7 +1212,7 @@ struct async_result<detail::experimental::blocking_poll_until_impl<Clock, Durati
         std::atomic<bool> done{false};
 
         std::move(initiation)(
-                [&](std::exception_ptr ex, T value)
+                [&](std::exception_ptr ex, T value) ASIO_NOEXCEPT
                 {
                     result = std::move(value);
                     error = ex;
@@ -1247,7 +1244,7 @@ struct async_result<detail::experimental::blocking_poll_until_impl<Clock, Durati
         std::optional<T> result;
         std::atomic<bool> done{false};
         std::move(initiation)(
-                [&](error_code ec, T value)
+                [&](error_code ec, T value) ASIO_NOEXCEPT
                 {
                     result = std::move(value);
                     error = ec;
