@@ -176,6 +176,7 @@ endif
 if HAVE_CXX14
 check_PROGRAMS += \
 	unit/experimental/deferred
+	unit/experimental/timeout
 endif
 
 if HAVE_CXX20
@@ -354,6 +355,7 @@ TESTS = \
 if HAVE_CXX14
 TESTS += \
 	unit/experimental/deferred
+	unit/experimental/timeout \
 endif
 
 if HAVE_CXX20
@@ -551,6 +553,7 @@ unit_write_at_SOURCES = unit/write_at.cpp
 
 if HAVE_CXX14
 unit_experimental_deferred_SOURCES = unit/experimental/deferred.cpp
+unit_experimental_timeout_SOURCES = unit/experimnetal/timeout.cpp
 endif
 
 if HAVE_CXX20
