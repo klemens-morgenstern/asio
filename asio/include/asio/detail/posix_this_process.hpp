@@ -14,6 +14,8 @@
 #include "asio/detail/config.hpp"
 #include "asio/detail/push_options.hpp"
 
+#include <filesystem>
+
 namespace asio
 {
 namespace detail
@@ -22,7 +24,6 @@ namespace this_process
 {
 namespace posix
 {
-
 
 namespace env
 {
@@ -45,7 +46,7 @@ inline std::basic_string<char_type, value_char_traits<char_type>> get(
     auto res = ::getenv(key.c_str());
     if (res == nullptr)
     {
-        ec.assign(errno, system_category());
+        ec.assign(errno, asio::error::get_system_category());
         return {};
     }
     return res;
@@ -56,26 +57,31 @@ inline void set(const std::basic_string<char_type, key_char_traits<char_type>> &
                 error_code & ec)
 {
     if (::setenv(key.c_str(), value.c_str(), true))
-        ec.assign(errno, system_category());
+        ec.assign(errno, asio::error::get_system_category());
 }
 
 inline void unset(const std::basic_string<char_type, key_char_traits<char_type>> & key,
                   error_code & ec)
 {
     if (::unsetenv(key.c_str()))
-        ec.assign(errno, system_category());
+        ec.assign(errno, asio::error::get_system_category());
 }
 
 
-struct native_handle //make it iterable somehow
+using native_handle = char**;
+using native_iterator = char**;
+
+inline native_handle load() { return ::environ; }
+
+char ** find_end(native_handle nh)
 {
-    char** envs = ::environ;
-};
-
-inline native_handle load() {return native_handle{::environ};}
-
+    while (*nh != nullptr)
+        nh++;
+    return nh;
 }
 
+
+}
 
 inline pid_t get_id() {return ::getpid(); }
 

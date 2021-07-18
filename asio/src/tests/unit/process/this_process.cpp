@@ -22,7 +22,45 @@ namespace this_process
 {
 void simple_test()
 {
+    namespace env = asio::this_process::env;
+    for (auto [key, value] : env::view())
+    {
+        auto ptr = ::getenv(key.string().c_str());
+        ASIO_CHECK(ptr == value);
+        ASIO_CHECK(env::get(key) == ptr);
+        std::cout << "Key: " << key << " - " << value <<  " == '"  << ptr << "'" << std::endl;
+        for (auto pt : value)
+            std::cout << "    Val: " << pt << std::endl;
 
+
+    }
+
+    {
+        auto v = env::view();
+        auto itr = std::find_if(v.begin(), v.end(), [](env::key_value_pair kvp) {return kvp.key_view() == "ASIO_ENV_TEST";});
+        ASIO_CHECK(itr == v.end());
+        asio::error_code ec;
+        ASIO_CHECK(env::get("ASIO_ENV_TEST", ec).empty());
+    }
+    {
+        asio::error_code ec;
+        env::set("ASIO_ENV_TEST", "123", ec);
+        ASIO_CHECK_MESSAGE(!ec, ec.message());
+        auto v = env::view();
+        auto itr = std::find_if(v.begin(), v.end(), [](env::key_value_pair kvp) {return kvp.key_view() == "ASIO_ENV_TEST";});
+        ASIO_CHECK(itr != v.end());
+        ASIO_CHECK(itr->value_view() == "123");
+        ASIO_CHECK(env::get("ASIO_ENV_TEST") == "123");
+    }
+    {
+        env::unset("ASIO_ENV_TEST");
+        auto v = env::view();
+        auto itr = std::find_if(v.begin(), v.end(), [](env::key_value_pair kvp) {return kvp.key_view() == "ASIO_ENV_TEST";});
+        ASIO_CHECK(itr == v.end());
+        asio::error_code ec;
+
+        ASIO_CHECK(env::get("ASIO_ENV_TEST", ec).empty());
+    }
 }
 
 }
