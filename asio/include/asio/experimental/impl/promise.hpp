@@ -41,7 +41,7 @@ struct promise_impl<void(Ts...), Executor>
 
   std::optional<result_type> result;
   bool done{false};
-  detail::completion_handler_erasure<void(Ts...), Executor> completion;
+  detail::completion_handler_erasure<void(Ts...)> completion;
   cancellation_signal cancel;
   Executor executor;
 };
