@@ -11,7 +11,18 @@
 #define ASIO_PROCESS_HPP
 
 
-#include "asio/process/handle.hpp"
+#include "asio/process/detail/handle.hpp"
 #include "asio/process/launcher.hpp"
+
+namespace asio
+{
+
+struct process
+{
+
+
+};
+
+}
 
 #endif //ASIO_PROCESS_HPP

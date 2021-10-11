@@ -13,7 +13,7 @@
 #define BOOST_ALL_NO_LIB 1
 #endif // !defined(BOOST_ALL_NO_LIB)
 
-#include "asio/process/handle.hpp"
+#include "asio/process/detail/handle.hpp"
 #include "asio/this_process.hpp"
 
 #include "../unit_test.hpp"
@@ -28,11 +28,6 @@ void simple_test()
         auto ptr = ::getenv(key.string().c_str());
         ASIO_CHECK(ptr == value);
         ASIO_CHECK(env::get(key) == ptr);
-        std::cout << "Key: " << key << " - " << value <<  " == '"  << ptr << "'" << std::endl;
-        for (auto pt : value)
-            std::cout << "    Val: " << pt << std::endl;
-
-
     }
 
     {
@@ -61,6 +56,8 @@ void simple_test()
 
         ASIO_CHECK(env::get("ASIO_ENV_TEST", ec).empty());
     }
+
+    ASIO_CHECK(asio::this_process::get_id() != 0u);
 }
 
 }

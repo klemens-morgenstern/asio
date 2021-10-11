@@ -14,7 +14,7 @@
 #endif // !defined(BOOST_ALL_NO_LIB)
 
 // Test that header file is self-contained.
-#include "asio/process/handle.hpp"
+#include "asio/process/detail/handle.hpp"
 #include "asio/process.hpp"
 #include <sys/types.h>
 #include <sys/syscall.h>

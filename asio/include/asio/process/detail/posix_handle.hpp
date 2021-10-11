@@ -11,6 +11,7 @@
 #define ASIO_PROCESS_DETAIL_POSIX_HANDLE_HPP
 
 #include "asio/detail/config.hpp"
+#include "posix_launcher.hpp"
 
 #if !defined(ASIO_WINDOWS) || !defined(__CYGWIN__)
 
@@ -20,6 +21,12 @@
 namespace asio {
 namespace detail {
 namespace process {
+
+
+inline error_code get_last_error()
+{
+    return error_code(errno, system_category());
+}
 
 ASIO_CONSTEXPR static int still_active = 0x017f;
 static_assert(WIFSTOPPED(still_active), "Expected still_active to indicate WIFSTOPPED");
@@ -43,20 +50,19 @@ ASIO_CONSTEXPR inline bool is_code_running(int code)
   return !WIFEXITED(code) && !WIFSIGNALED(code);
 }
 
-inline bool is_running(int pid, int & exit_code)
+inline bool is_running(int pid, int & exit_code, error_code & ec)
 {
     if (!is_code_running(exit_code))
         return false;
     auto ret = ::waitpid(pid, &exit_code, WNOHANG);
 
     if (ret == -1)
-        asio::detail::throw_error(
-                asio::error_code(errno, asio::system_category()), "waitpid() failed");
+        ec = get_last_error();
     return is_code_running(exit_code);
 }
 
 
-void terminate_if_running(int pid)
+inline void terminate_if_running(int pid)
 {
     int exit_code;
     if (!is_code_running(exit_code))
@@ -67,16 +73,25 @@ void terminate_if_running(int pid)
         ::kill(pid, SIGKILL);
 }
 
-void terminate(int pid) noexcept
+inline void terminate(int pid, int & exit_code, error_code & ec) noexcept
 {
     if (::kill(pid, SIGKILL) == -1)
-        asio::detail::throw_error(
-                asio::error_code(errno, asio::system_category()), "terminate() failed");
-
-    ::waitpid(pid, nullptr, WNOHANG); //just to clean it up
+        ec = get_last_error();
+    else
+        ::waitpid(pid, &exit_code, WNOHANG); //just to clean it up
 }
 
+inline void request_exit(int pid, error_code & ec) noexcept
+{
+    if (::kill(pid, SIGTERM) == -1)
+        ec = get_last_error();
+}
 
+inline void interrupt(int pid, error_code & ec) noexcept
+{
+    if (::kill(pid, SIGTERM) == -1)
+        ec = get_last_error();
+}
 
 }
 }

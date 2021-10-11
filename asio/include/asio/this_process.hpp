@@ -470,16 +470,11 @@ struct key_value_pair_view
     key_value_pair_view() noexcept = default;
     key_value_pair_view( const key_value_pair_view& p ) = default;
     key_value_pair_view( key_value_pair_view&& p ) noexcept = default;
-    key_value_pair_view( string_view_type source ) : value_(source) {}
+    //key_value_pair_view( string_view_type source ) : value_(source) {}
 
     key_value_pair_view( const char_type * p) : value_(p) {}
     key_value_pair_view(       char_type * p) : value_(p) {}
 
-    template< class InputIt >
-    key_value_pair_view( InputIt first, InputIt last, const std::locale& loc = std::locale())
-            : key_value_pair_view(std::basic_string(first, last), loc)
-    {
-    }
 
     ~key_value_pair_view() = default;
 

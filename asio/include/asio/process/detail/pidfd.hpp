@@ -27,6 +27,8 @@ namespace detail
 #define __NR_pidfd_open 434   /* System call # on most architectures */
 #endif
 
+using pid_type = ::pid_t;
+
 inline int pidfd_open(pid_t pid, unsigned int flags)
 {
     return syscall(__NR_pidfd_open, pid, flags);
@@ -46,15 +48,14 @@ struct basic_process_handle : protected posix::basic_descriptor<Executor>
         typedef basic_process_handle<Executor1> other;
     };
 
+    using posix::basic_descriptor<Executor>::get_executor;
+
     /// The native representation of a descriptor.
     typedef int native_handle_type;
 
     native_handle_type native_handle() const { return pid_; }
 
-    explicit basic_process_handle(int pid) : pid_(pid)
-    {}
-
-    basic_process_handle(const executor_type & ex) : posix::basic_descriptor<Executor>(ex) {}
+    basic_process_handle(executor_type ex) : posix::basic_descriptor<Executor>(std::move(ex)) {}
 
     template <typename ExecutionContext>
     basic_process_handle(ExecutionContext& context, typename constraint<is_convertible<ExecutionContext&, execution_context&>::value>::type = 0)
@@ -62,7 +63,10 @@ struct basic_process_handle : protected posix::basic_descriptor<Executor>
     {
     }
 
-    basic_process_handle(const executor_type & ex, native_handle_type pid) : pid_(pid), posix::basic_descriptor<Executor>(ex, pidfd_open(pid, 0)) {}
+    basic_process_handle(executor_type ex, native_handle_type pid) :
+        posix::basic_descriptor<Executor>(std::move(ex), pidfd_open(pid, 0)),
+        pid_(pid)
+    {}
 
     template <typename ExecutionContext>
     basic_process_handle(ExecutionContext& context,  native_handle_type pid,
@@ -101,8 +105,8 @@ struct basic_process_handle : protected posix::basic_descriptor<Executor>
     ~basic_process_handle() {}
 
     basic_process_handle(const basic_process_handle & c) = delete;
-    basic_process_handle(basic_process_handle && c) : pid_(c.pid_),
-                                                      posix::basic_descriptor<Executor>(std::move(c.pid_descriptor_))
+    basic_process_handle(basic_process_handle && c)
+        : pid_(c.pid_), posix::basic_descriptor<Executor>(std::move(c))
     {
         c.pid_ = -1;
     }
@@ -136,7 +140,7 @@ struct basic_process_handle : protected posix::basic_descriptor<Executor>
                 ASIO_MOVE_OR_LVALUE(WaitHandler)(handler));
     }
 
-    int id() const
+    pid_type id() const
     {
         return pid_;
     }

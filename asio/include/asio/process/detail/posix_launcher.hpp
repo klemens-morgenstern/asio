@@ -15,15 +15,18 @@
 
 #include "asio/detail/config.hpp"
 
-#include "asio/process/handle.hpp"
+#include "asio/process/detail/handle.hpp"
 
 #include "asio/detail/push_options.hpp"
 
+#include <filesystem>
+#include <sys/wait.h>
 
 namespace asio
 {
-namespace process
-{
+
+template<typename Executor>
+struct basic_process;
 
 struct default_process_launcher;
 
@@ -46,11 +49,8 @@ template<typename Init, typename Launcher = default_process_launcher>
 concept on_exec_error_init = requires(Init initializer, Launcher launcher) { {initializer.on_exec_error(launcher, std::error_code())}; };
 
 
-template<typename Executor = asio::any_io_executor>
 struct default_process_launcher
 {
-    using Executor = executor_type;
-
     std::error_code _ec;
     const char * _error_msg = nullptr;
 
@@ -159,23 +159,24 @@ struct default_process_launcher
     template<typename Args>
     auto prepare_args(const std::filesystem::path &exe, Args && args)
     {
-        std::vector<char*> vec{args.size() + 2, nullptr};
+        std::vector<char*> vec{std::size(args) + 2, nullptr};
         vec[0] = const_cast<char*>(exe.c_str());
-        std::transform(std::begin(args), std::end(args), vec.begin() + 1, [](std::string_view sv){return const_cast<char*>(sv.data());});
+        std::transform(std::begin(args), std::end(args), vec.begin() + 1,
+                       [](std::string_view sv){return const_cast<char*>(sv.data());});
         return vec;
     }
 
-    template<typename Args, typename ... Inits>
-    auto launch(executor_type executor, const std::filesystem::path &exe, Args && args, Inits && ... inits) -> process
+    template<typename Executor, typename Args, typename ... Inits>
+    auto launch(Executor executor, const std::filesystem::path &exe, Args && args, Inits && ... inits) -> basic_process<Executor>
     {
-        process proc = launch(std::move(executor), exec, std::forward<Args>(args), std::forward<Inits>(inits)...);
+        basic_process<Executor> proc = launch(std::move(executor), _ec, exe, std::forward<Args>(args), std::forward<Inits>(inits)...);
         if (_ec)
             asio::detail::throw_error(_ec, _error_msg != nullptr ? _error_msg : "process launch failed");
         return proc;
     }
 
-    template<typename Args, typename ... Inits>
-    auto launch(executor_type executor, error_code & ec, const std::filesystem::path &exe, Args && args, Inits && ... inits) -> process
+    template<typename Executor, typename Args, typename ... Inits>
+    auto launch(Executor executor, error_code & , const std::filesystem::path &exe, Args && args, Inits && ... inits) -> basic_process<Executor>
     {
         //arg store
         auto arg_store = prepare_args(exe, std::forward<Args>(args));
@@ -193,13 +194,15 @@ struct default_process_launcher
                     ::close(p[1]);
             }
         };
+        pid_t pid{-1};
         {
             pipe_guard p;
 
             if (::pipe(p.p) == -1)
-                set_error(get_last_error(), "pipe(2) failed");
+                set_error(error_code{errno, asio::error::get_system_category()}, "pipe(2) failed");
             else if (::fcntl(p.p[1], F_SETFD, FD_CLOEXEC) == -1)
-                set_error(get_last_error(), "fcntl(2) failed");//this might throw, so we need to be sure our pipe is safe.
+                set_error(error_code{errno, asio::error::get_system_category()}, "fcntl(2) failed");
+            //this might throw, so we need to be sure our pipe is safe.
 
             if (!_ec)
                 (_on_setup(inits),...);
@@ -207,16 +210,16 @@ struct default_process_launcher
             if (_ec)
             {
                 (_on_error(inits),...);
-                return {executor};
+                return basic_process<Executor>{executor};
             }
             executor.context().notify_fork(asio::execution_context::fork_prepare);
             pid = ::fork();
             if (pid == -1)
             {
-                set_error(get_last_error(), "fork() failed");
+                set_error(error_code{errno, asio::error::get_system_category()}, "fork() failed");
                 (_on_error(inits),...);
                 (_on_fork_error(inits),...);
-                return {};
+                return basic_process<Executor>{executor};
             }
             else if (pid == 0)
             {
@@ -225,13 +228,13 @@ struct default_process_launcher
                 (_on_exec_setup(inits),...);
 
                 ::execve(exe.c_str(), cmd_line, env);
-                set_error(get_last_error(), "execve failed");
+                set_error(error_code{errno, asio::error::get_system_category()}, "execve failed");
 
                 _write_error(p.p[1], _error_msg);
                 ::close(p.p[1]);
 
                 _exit(EXIT_FAILURE);
-                return {executor};
+                return basic_process<Executor>{executor, pid};
             }
             executor.context().notify_fork(asio::execution_context::fork_parent);
 
@@ -243,15 +246,16 @@ struct default_process_launcher
         if (_ec)
         {
             (_on_error(inits),...);
-            return {executor};
+            ::waitpid(pid, nullptr, O_NONBLOCK);
+            return basic_process<Executor>{executor};
         }
-        process proc{pid};
+        basic_process<Executor> proc{executor, pid};
         (_on_success(inits),...);
 
         if (_ec)
         {
             (_on_error(inits),...);
-            return {executor};
+            return basic_process<Executor>{executor};
         }
 
         return proc;
@@ -262,7 +266,6 @@ struct default_process_launcher
 
 
 
-}
 }
 
 #include "asio/detail/pop_options.hpp"

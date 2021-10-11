@@ -8,8 +8,8 @@
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 
-#ifndef ASIO_PROCESS_HANDLE_HPP
-#define ASIO_PROCESS_HANDLE_HPP
+#ifndef ASIO_PROCESS_LAUNCHER_HPP
+#define ASIO_PROCESS_LAUNCHER_HPP
 
 #if defined(_MSC_VER) && (_MSC_VER >= 1200)
 # pragma once
@@ -26,4 +26,4 @@
 #endif
 
 
-#endif //ASIO_HANDLE_HPP
+#endif //ASIO_PROCESS_LAUNCHER_HPP
