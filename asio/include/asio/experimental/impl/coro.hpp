@@ -530,9 +530,10 @@ struct coro_promise final :
   auto handle()
   { return coroutine_handle<coro_promise>::from_promise(this); }
 
-  using executor_type = Executor;
+  using executor_type = std::remove_volatile_t<Executor>;
 
-  executor_type executor_;
+  std::conditional_t<std::is_volatile_v<Executor> && !std::is_default_constructible_v<Executor>,
+                     std::optional<executor_type>, executor_type> executor_;
 
   std::optional<coro_cancellation_source> cancel_source;
   coro_cancellation_source * cancel;
@@ -549,8 +550,28 @@ struct coro_promise final :
   using result_type = typename traits::result_type;
   constexpr static bool is_noexcept = traits::is_noexcept;
 
-  auto get_executor() const -> Executor
-  { return executor_; }
+  auto get_executor() const -> executor_type
+  {
+    if constexpr (std::is_volatile_v<Executor>)
+    {
+      if (!executor_)
+        asio::detail::throw_exception(execution::bad_executor());
+      if constexpr (std::is_default_constructible_v<executor_type>)
+        return executor_;
+      else
+        return *executor_;
+    }
+    else
+      return executor_;
+  }
+
+  bool has_executor() const
+  {
+    if constexpr (std::is_volatile_v<Executor>)
+      return executor_;
+    else
+      return true;
+  }
 
   auto get_handle()
   {
@@ -558,13 +579,13 @@ struct coro_promise final :
   }
 
   template<typename... Args>
-  coro_promise(Executor executor, Args &&...) noexcept
+  coro_promise(executor_type executor, Args &&...) noexcept
           : executor_(std::move(executor))
   {
   }
 
   template<typename First, typename... Args>
-  coro_promise(First &&, Executor executor, Args &&...) noexcept
+  coro_promise(First &&, executor_type executor, Args &&...) noexcept
           : executor_(std::move(executor))
   {
   }
@@ -581,6 +602,10 @@ struct coro_promise final :
           : executor_(ctx.get_executor())
   {
   }
+
+  template<typename = void>
+    requires std::is_volatile_v<Executor>
+  coro_promise() {}
 
   auto get_return_object()
   {
@@ -601,7 +626,7 @@ struct coro_promise final :
   {
     struct exec_helper
     {
-      const executor_type &value;
+      const executor_type &executor_;
 
       constexpr static bool await_ready() noexcept
       { return true; }
@@ -610,10 +635,22 @@ struct coro_promise final :
       {}
 
       executor_type await_resume() const noexcept
-      { return value; }
+      {
+        return executor_;
+      }
     };
 
-    return exec_helper{executor_};
+    if constexpr (std::is_volatile_v<Executor>)
+    {
+      if (!executor_)
+        asio::detail::throw_exception(execution::bad_executor());
+      if constexpr (std::is_default_constructible_v<executor_type>)
+        return exec_helper{executor_};
+      else
+        return exec_helper{*executor_};
+    }
+    else
+      return exec_helper{executor_};
   }
 
   auto await_transform(this_coro::cancellation_state_t) const
@@ -1104,7 +1141,7 @@ struct coro<Yield, Return, Executor>::awaitable_t
 template <typename Yield, typename Return, typename Executor>
 struct coro<Yield, Return, Executor>::initiate_async_resume
 {
-  typedef Executor executor_type;
+  typedef std::remove_volatile_t<Executor> executor_type;
 
   explicit initiate_async_resume(coro* self)
           : self_(self)
@@ -1272,12 +1309,22 @@ struct coro<Yield, Return, Executor>::initiate_async_resume
   }
 
   template <typename WaitHandler>
+  auto prepare_executor(WaitHandler&& handler)
+  {
+    if constexpr (std::is_volatile_v<Executor>)
+    {
+      auto e = get_associated_executor(handler);;
+      self_->coro_->executor_ = e;
+      return asio::prefer(e, execution::outstanding_work.tracked);
+    }
+    else
+      return asio::prefer(get_associated_executor(handler, get_executor()), execution::outstanding_work.tracked);
+  }
+
+  template <typename WaitHandler>
   void operator()(WaitHandler&& handler)
   {
-    const auto exec =
-            asio::prefer(
-                    get_associated_executor(handler, get_executor()),
-                    execution::outstanding_work.tracked);
+    const auto exec = prepare_executor(handler);
 
     auto c = self_->coro_;
     c->cancel = &c->cancel_source.emplace();

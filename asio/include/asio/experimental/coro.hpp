@@ -90,7 +90,7 @@ struct coro
   friend struct detail::coro_with_arg;
 #endif // !defined(GENERATING_DOCUMENTATION)
   /// The executor type.
-  using executor_type = Executor;
+  using executor_type = std::remove_volatile_t<Executor>;
 
 #if !defined(GENERATING_DOCUMENTATION)
   friend struct detail::coro_promise<Yield, Return, Executor>;
@@ -169,9 +169,13 @@ struct coro
       return coro_->get_executor();
 
     if constexpr (std::is_default_constructible_v<Executor>)
-      return Executor{};
+      return executor_type{};
     else
-      asio::detail::throw_exception(std::logic_error("Coroutine has no executor"));
+    {
+      asio::detail::throw_exception(execution::bad_executor());
+      return std::optional<executor_type>{}.value();
+
+    }
   }
   /// Resume the coroutine.
   /**

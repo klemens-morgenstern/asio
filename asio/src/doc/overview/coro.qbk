@@ -181,6 +181,12 @@ the object:
 A `coro` with an executor of `void` does not have an executor an cannot only be used synchronously. That is,
 it does not have an `async_resume`, but a `resume` again.
 
+A `coro` can skip having an executor by declaring it `volatile`.
+This will cause the coro to take the executor associated with the completion token.
+This means that the coro can run on different executors during it's lifetime.
+It is up to the user to avoid race conditions.
+
+
 [h3 `co_await`]
 
 The co_await within a `coro` is not the same as `async_resume(use_coro)`, unless both coros use different executors.
