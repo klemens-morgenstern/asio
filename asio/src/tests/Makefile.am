@@ -191,7 +191,8 @@ check_PROGRAMS += \
 	unit/experimental/coro/partial \
 	unit/experimental/coro/simple_test \
 	unit/experimental/coro/stack_test \
-	unit/experimental/coro/use_coro
+	unit/experimental/coro/use_coro \
+	unit/experimental/coro/void
 endif
 endif
 
@@ -369,7 +370,8 @@ TESTS += \
 	unit/experimental/coro/partial \
 	unit/experimental/coro/simple_test \
 	unit/experimental/coro/stack_test \
-	unit/experimental/coro/use_coro
+	unit/experimental/coro/use_coro \
+	unit/experimental/coro/void
 endif
 endif
 
@@ -566,6 +568,8 @@ unit_experimental_coro_partial_SOURCES = unit/experimental/coro/partial.cpp
 unit_experimental_coro_simple_test_SOURCES = unit/experimental/coro/simple_test.cpp
 unit_experimental_coro_stack_test_SOURCES = unit/experimental/coro/stack_test.cpp
 unit_experimental_coro_use_coro_SOURCES = unit/experimental/coro/use_coro.cpp
+unit_experimental_coro_void_SOURCES = unit/experimental/coro/void.cpp
+
 endif
 endif
 

@@ -178,12 +178,16 @@ the object:
   };
 
 
+A `coro` with an executor of `void` does not have an executor an cannot only be used synchronously. That is,
+it does not have an `async_resume`, but a `resume` again.
+
 [h3 `co_await`]
 
 The co_await within a `coro` is not the same as `async_resume(use_coro)`, unless both coros use different executors.
 If they use the same, the `coro` will direclty suspend and resume the executor, without any usage of the executor.
 
-
+Additionally, a coro can directly `co_await` an object with an `async_wait` member function. A synchrounous coroutine
+does the same with `wait`.
 
 `co_await this_coro::` behaves the same as with awaitables.
 

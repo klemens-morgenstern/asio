@@ -37,13 +37,26 @@ struct coro_with_arg;
 
 }
 
-
 /// The main type of a resumable coroutine.
 /**
+ * A coroutine gets constructed by a coroutine returning the coro type:
+ *
+ * \code
+ *
+ * asio::experimental::coro<void> delay(asio::any_io_executor exec)
+ * {
+ *   asio::steady_timer st{exec, asio::chrono::milliseconds(100)};
+ *   co_await st;
+ * }
+ *
+ * \endcode
+ *
  *
  * @tparam Yield The type or signature used by co_yield.
  * @tparam Return The type used for co_return.
  * @tparam Executor The underlying executor.
+ *
+ * Coroutines with an void executor, i.e. asio::experimental::coro<Yield, Return, void> are synchronous
  */
 template <typename Yield = void, typename Return = void,
     typename Executor = any_io_executor>
@@ -108,42 +121,47 @@ struct coro
    * Destructing a resume couritine, i.e. one with a call to async_resume
    * that has not completed is undefined behaviour.
    */
-
   ~coro()
   {
-    if (coro_ != nullptr)
+    if constexpr (!std::is_void_v<Executor>)
     {
-      struct destroyer
+
+      if (coro_ != nullptr)
       {
-        detail::coroutine_handle<promise_type> handle;
-
-        destroyer(const detail::coroutine_handle<promise_type>& handle)
-          : handle(handle)
+        struct destroyer
         {
-        }
+          detail::coroutine_handle<promise_type> handle;
 
-        destroyer(destroyer&& lhs)
-          : handle(std::exchange(lhs.handle, nullptr))
-        {
-        }
+          destroyer(const detail::coroutine_handle<promise_type>& handle)
+            : handle(handle)
+          {
+          }
 
-        destroyer(const destroyer&) = delete;
+          destroyer(destroyer&& lhs)
+            : handle(std::exchange(lhs.handle, nullptr))
+          {
+          }
 
-        void operator()() {}
+          destroyer(const destroyer&) = delete;
 
-        ~destroyer()
-        {
-          if (handle)
-            handle.destroy();
-        }
-      };
+          void operator()() {}
 
-      auto handle =
-        detail::coroutine_handle<promise_type>::from_promise(*coro_);
-      if (handle)
-        asio::dispatch(coro_->get_executor(), destroyer{handle});
+          ~destroyer()
+          {
+            if (handle)
+              handle.destroy();
+          }
+        };
+
+        auto handle =
+          detail::coroutine_handle<promise_type>::from_promise(*coro_);
+        if (handle)
+          asio::dispatch(coro_->get_executor(), destroyer{handle});
+      }
     }
   }
+
+
   /// Get the used executor.
   executor_type get_executor() const
   {
@@ -153,7 +171,7 @@ struct coro
     if constexpr (std::is_default_constructible_v<Executor>)
       return Executor{};
     else
-      throw std::logic_error("Coroutine has no executor");
+      asio::detail::throw_exception(std::logic_error("Coroutine has no executor"));
   }
   /// Resume the coroutine.
   /**
@@ -164,7 +182,7 @@ struct coro
    * \note This overload is only available for coroutines without an input value.
    */
   template <typename CompletionToken>
-    requires std::is_void_v<input_type>
+    requires std::is_void_v<input_type> && (!std::is_void_v<executor_type>)
   auto async_resume(CompletionToken&& token)
   {
     return async_initiate<CompletionToken,
@@ -181,6 +199,7 @@ struct coro
    * \note This overload is only available for coroutines with an input value.
    */
   template <typename CompletionToken, detail::convertible_to<input_type> T>
+    requires (!std::is_void_v<executor_type>)
   auto async_resume(T&& ip, CompletionToken&& token)
   {
     return async_initiate<CompletionToken,
@@ -230,6 +249,76 @@ struct coro
   /// Check whether the coroutine is open, i.e. can be resumed.
   explicit operator bool() const { return is_open(); }
 
+  /// Resume the coroutine synchronously.
+  /**
+   * \attention Calling an invalid coroutine with a noexcept signature is undefined behaviour.
+   *
+   * \note This overload is only available for coroutines without an input value and without executors.
+   */
+  template<typename = void>
+    requires std::is_void_v<input_type> && std::is_void_v<Executor>
+  auto resume() noexcept (is_noexcept)
+  {
+    if (!coro_)
+      asio::detail::throw_exception(std::logic_error("resuming invalid coroutine"));
+
+    return coro_->resume();
+  }
+
+  /// Resume the coroutine synchronously.
+  /**
+   * \attention Calling an invalid coroutine with a noexcept signature is undefined behaviour.
+   *
+   * \note This overload is only available for coroutines with an input value and without executors.
+   */
+  template <detail::convertible_to<input_type> T>
+    requires (!std::is_void_v<input_type>) && std::is_void_v<Executor>
+  auto resume(T&& ip) noexcept (is_noexcept)
+  {
+    if (!coro_)
+      asio::detail::throw_exception(std::logic_error("resuming invalid coroutine"));
+    if constexpr (std::is_void_v<Executor>)
+      return coro_->resume(std::forward<T>(ip));
+  }
+
+  /// Resume the coroutine synchronously.
+  /**
+   * \note This overload is only available for coroutines without an input value and without executors.
+   */
+  template<typename = void>
+    requires std::is_void_v<input_type> && std::is_void_v<Executor>
+  auto resume(std::nothrow_t) noexcept
+  {
+    using type = std::conditional_t<std::is_void_v<result_type>,
+                                    std::exception_ptr,
+                                    std::variant<std::exception_ptr, result_type>>;
+    if (!coro_)
+      return type{std::make_exception_ptr(std::logic_error("resuming invalid coroutine"))};
+
+    return coro_->resume(std::nothrow);
+  }
+
+  /// Resume the coroutine synchronously.
+  /**
+   * \attention Calling an invalid coroutine with a noexcept signature is undefined behaviour.
+   *
+   * \note This overload is only available for coroutines with an input value and without executors.
+   */
+  template <detail::convertible_to<input_type> T>
+    requires (!std::is_void_v<input_type>) && std::is_void_v<Executor>
+  auto resume(T&& ip, std::nothrow_t) noexcept (is_noexcept)
+  {
+    using type = std::conditional_t<std::is_void_v<result_type>,
+            std::exception_ptr,
+            std::variant<std::exception_ptr, result_type>>;
+
+    if (!coro_)
+      return type{std::make_exception_ptr(std::logic_error("resuming invalid coroutine"))};
+
+    if constexpr (std::is_void_v<Executor>)
+      return coro_->resume(std::forward<T>(ip), std::nothrow);
+  }
+
 // TODO check if cancellation can be done
 //  /// Send a cancel signal to the coroutine.
 //  /**
@@ -251,7 +340,6 @@ struct coro
 //            }
 //          });
 //  }
-
 private:
   struct awaitable_t;
 
@@ -261,6 +349,7 @@ private:
 
   promise_type* coro_{nullptr};
 };
+
 
 } // namespace experimental
 } // namespace asio

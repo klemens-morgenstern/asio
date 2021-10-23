@@ -21,8 +21,8 @@ namespace detail {
 
 template <typename Coroutine,
      typename Executor = typename Coroutine::executor_type,
-     typename Allocator = typename std::allocator_traits<
-       associated_allocator_t<Executor>>:: template rebind_alloc<std::byte>,
+     typename Allocator =
+             typename std::allocator_traits<associated_allocator_t<Executor>>:: template rebind_alloc<std::byte>,
      bool Noexcept = noexcept(std::declval<Allocator>().allocate(0u))>
 struct coro_promise_allocator
 {
@@ -110,6 +110,33 @@ struct coro_promise_allocator<Coroutine, Executor, Allocator, true>
     return Coroutine{};
   }
 };
+
+template <typename Coroutine>
+struct coro_promise_allocator<Coroutine, void, void, false>
+{
+
+};
+
+template <typename Coroutine>
+struct coro_promise_allocator<Coroutine, void, void, true>
+{
+  template <typename... Args>
+  void* operator new(const std::size_t size, Args&&... ) noexcept
+  {
+    return ::new (std::nothrow) char[size];
+  }
+
+  void operator delete(void* raw, std::size_t size) noexcept
+  {
+    delete [] static_cast<char*>(raw);
+  }
+
+  static auto get_return_object_on_allocation_failure() noexcept -> Coroutine
+  {
+    return Coroutine{};
+  }
+};
+
 
 } // namespace detail
 } // namespace experimental

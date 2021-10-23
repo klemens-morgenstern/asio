@@ -159,6 +159,23 @@ struct coro_with_arg
     constexpr static bool await_ready() { return false; }
 
     template <typename Y, typename R, typename E>
+      requires std::is_void_v<typename coro_t::executor_type>
+    auto await_suspend(coroutine_handle<coro_promise<Y, R, E>> h) -> coroutine_handle<>
+    {
+      auto& hp = h.promise();
+      if constexpr (!detail::coro_promise<Y, R, E>::is_noexcept)
+        if ((hp.cancel->state.cancelled() != cancellation_type::none) && hp.cancel->throw_if_cancelled_)
+          asio::detail::throw_error(asio::error::operation_aborted, "coro-cancelled");
+
+      coro.coro_->awaited_from = h;
+      coro.coro_->reset_error();
+      coro.coro_->input_ = std::move(value);
+      return coro.coro_->get_handle();
+    }
+
+
+    template <typename Y, typename R, typename E>
+      requires (!std::is_void_v<typename coro_t::executor_type>)
     auto await_suspend(coroutine_handle<coro_promise<Y, R, E>> h)
       -> coroutine_handle<>
     {
@@ -209,7 +226,7 @@ struct coro_with_arg
         if (hp.cancel->state.slot().is_connected())
           hp.cancel->state.slot().template emplace<cancel_handler>(coro.get_executor(), coro);
 
-        auto hh = detail::coroutine_handle<detail::coro_promise<Y, R, E>>::from_promise(*coro.coro_);
+        auto hh = detail::coroutine_handle<typename coro_t::promise_type>::from_promise(*coro.coro_);
         return dispatch_coroutine(
                 coro.coro_->get_executor(), [hh]() mutable { hh.resume(); });
       }
@@ -218,7 +235,8 @@ struct coro_with_arg
 
     auto await_resume() -> typename coro_t::result_type
     {
-      coro.coro_->cancel = nullptr;
+      if constexpr (!std::is_void_v<typename coro_t::executor_type>)
+        coro.coro_->cancel = nullptr;
       coro.coro_->rethrow_if();
       return std::move(coro.coro_->result_);
     }
@@ -355,15 +373,13 @@ struct coro_promise_exchange : coro_awaited_from
   auto yield_value(Yield &&y)
   {
     result_ = std::move(y);
-    return yield_input<Input>{std::move(input_),
-                              std::exchange(awaited_from, noop_coroutine())};
+    return yield_input<Input>{input_, std::exchange(awaited_from, noop_coroutine())};
   }
 
   auto yield_value(const Yield &y)
   {
     result_ = y;
-    return yield_input<Input>{std::move(input_),
-                              std::exchange(awaited_from, noop_coroutine())};
+    return yield_input<Input>{input_, std::exchange(awaited_from, noop_coroutine())};
   }
 
   void return_value(const Return &r)
@@ -807,6 +823,188 @@ struct coro_promise final :
   }
 };
 
+
+template<typename Yield, typename Return>
+struct coro_promise<Yield, Return, void> final :
+        coro_promise_error<coro_traits<Yield, Return, void>::is_noexcept>,
+        coro_promise_exchange<
+                typename coro_traits<Yield, Return, void>::yield_type,
+                typename coro_traits<Yield, Return, void>::input_type,
+                typename coro_traits<Yield, Return, void>::return_type>
+{
+  using coro_type = coro<Yield, Return, void>;
+
+  auto handle()
+  {
+    return coroutine_handle<coro_promise>::from_promise(this);
+  }
+
+  using executor_type = void;
+
+  using traits = coro_traits<Yield, Return, void>;
+
+  using input_type  = typename traits::input_type;
+  using yield_type  = typename traits::yield_type;
+  using return_type = typename traits::return_type;
+  using error_type  = typename traits::error_type;
+  using result_type = typename traits::result_type;
+  constexpr static bool is_noexcept = traits::is_noexcept;
+
+  void get_executor() const { }
+
+  auto get_handle()
+  {
+    return coroutine_handle<coro_promise>::from_promise(*this);
+  }
+  auto get_return_object()
+  {
+    return coro<Yield, Return, void>{this};
+  }
+
+  auto initial_suspend() noexcept
+  {
+    return suspend_always{};
+  }
+
+  using coro_promise_exchange<
+          typename coro_traits<Yield, Return, void>::yield_type,
+          typename coro_traits<Yield, Return, void>::input_type,
+          typename coro_traits<Yield, Return, void>::return_type>::yield_value;
+
+  auto await_transform(this_coro::executor_t) const
+  {
+    return detail::suspend_never();
+  }
+
+  template<typename Yield_, typename Return_, typename Executor_>
+  auto await_transform(coro<Yield_, Return_, Executor_> &kr) -> decltype(auto)
+  {
+    return kr;
+  }
+
+  template<typename Yield_, typename Return_, typename Executor_>
+  auto await_transform(coro<Yield_, Return_, Executor_> &&kr)
+  {
+    return std::move(kr);
+  }
+
+  template<typename T_, typename Coroutine >
+  auto await_transform(coro_with_arg<T_, Coroutine> &&kr) -> decltype(auto)
+  {
+    return std::move(kr);
+  }
+
+  template<typename T_>
+    requires requires(T_ t) {{ t.wait() }; }  && (!is_noexcept)
+  auto await_transform(T_ &t) -> decltype(auto)
+  {
+    struct result
+    {
+      T_ & waitable_object;
+
+      bool await_ready() const noexcept { return true; }
+      void await_suspend(coroutine_handle<void>) noexcept { }
+      auto await_resume() { return waitable_object.wait(); }
+    };
+    return result{t};
+  }
+
+
+  template<typename T_>
+    requires requires(T_ t, error_code ec) {{ t.wait(ec) }; } && is_noexcept
+  auto await_transform(T_ &t) -> decltype(auto)
+  {
+    struct result
+    {
+      T_ & waitable_object;
+
+      bool await_ready() const noexcept { return true; }
+      void await_suspend(coroutine_handle<void>) noexcept { }
+      auto await_resume()
+      {
+        error_code ec;
+        if constexpr (std::is_void_v<decltype(waitable_object.wait(ec))>)
+        {
+          waitable_object.wait(ec);
+          return ec;
+        }
+        else
+          return std::make_pair(waitable_object.wait(ec), ec);
+
+      }
+    };
+    return result{t};
+  }
+
+  result_type resume()
+  {
+    this->reset_error();
+    auto ch = detail::coroutine_handle<coro_promise<Yield, Return, void>>::from_promise(*this);
+    ch.resume();
+
+    if constexpr (!is_noexcept)
+      if (this->error_)
+        std::rethrow_exception(this->error_);
+
+    if constexpr (!std::is_void_v<result_type>)
+      return std::move(this->result_);
+  }
+  template<typename T>
+  result_type resume(T && t)
+  {
+    this->input_ = std::forward<T>(t);
+    this->reset_error();
+    auto ch = detail::coroutine_handle<coro_promise<Yield, Return, void>>::from_promise(*this);
+
+    ch.resume();
+
+    if constexpr (!is_noexcept)
+      if (this->error_)
+        std::rethrow_exception(this->error_);
+
+    if constexpr (!std::is_void_v<result_type>)
+      return std::move(this->result_);
+  }
+
+  auto resume(std::nothrow_t)
+    -> std::conditional_t<std::is_void_v<result_type>, error_type, std::variant<error_type, result_type>>
+  {
+    this->reset_error();
+    auto ch = detail::coroutine_handle<coro_promise<Yield, Return, void>>::from_promise(*this);
+    ch.resume();
+
+    if constexpr (!is_noexcept)
+      if (this->error_)
+        return this->error_;
+
+    if constexpr (!std::is_void_v<result_type>)
+      return {std::in_place_index<1u>, std::move(this->result_)};
+    else
+      return std::exception_ptr{};
+
+  }
+
+  template<typename T>
+  auto resume(T && t, std::nothrow_t)
+    -> std::conditional_t<std::is_void_v<result_type>, error_type, std::variant<error_type, result_type>>
+  {
+    this->input_ = std::forward<T>(t);
+    this->reset_error();
+    auto ch = detail::coroutine_handle<coro_promise<Yield, Return, void>>::from_promise(*this);
+    ch.resume();
+
+    if constexpr (!is_noexcept)
+      if (this->error_)
+        return this->error_;
+
+    if constexpr (!std::is_void_v<result_type>)
+      return {std::in_place_index<1u>, std::move(this->result_)};
+    else
+      return std::exception_ptr{};
+  }
+
+};
+
 } // namespace detail
 
 template <typename Yield, typename Return, typename Executor>
@@ -817,6 +1015,24 @@ struct coro<Yield, Return, Executor>::awaitable_t
   constexpr static bool await_ready() { return false; }
 
   template <typename Y, typename R, typename E>
+    requires std::is_void_v<Executor>
+  auto await_suspend(detail::coroutine_handle<detail::coro_promise<Y, R, E>> h) -> detail::coroutine_handle<>
+  {
+    auto& hp = h.promise();
+    if constexpr (!detail::coro_promise<Y, R, E>::is_noexcept)
+      if ((hp.cancel->state.cancelled() != cancellation_type::none) && hp.cancel->throw_if_cancelled_)
+        asio::detail::throw_error(asio::error::operation_aborted, "coro-cancelled");
+
+    coro_.coro_->awaited_from  = h;
+    coro_.coro_->reset_error();
+
+    return coro_.coro_->get_handle();
+
+  }
+
+
+  template <typename Y, typename R, typename E>
+    requires (!std::is_void_v<Executor>)
   auto await_suspend(detail::coroutine_handle<detail::coro_promise<Y, R, E>> h) -> detail::coroutine_handle<>
   {
     auto& hp = h.promise();
@@ -875,12 +1091,15 @@ struct coro<Yield, Return, Executor>::awaitable_t
 
   auto await_resume() -> result_type
   {
-    coro_.coro_->cancel = nullptr;
+    if constexpr (!std::is_void_v<Executor>)
+      coro_.coro_->cancel = nullptr;
+
     coro_.coro_->rethrow_if();
     if constexpr (!std::is_void_v<result_type>)
       return std::move(coro_.coro_->result_);
   }
 };
+
 
 template <typename Yield, typename Return, typename Executor>
 struct coro<Yield, Return, Executor>::initiate_async_resume
@@ -913,7 +1132,7 @@ struct coro<Yield, Return, Executor>::initiate_async_resume
       assert(self->coro_->awaited_from == detail::noop_coroutine());
 
       self->coro_->awaited_from =
-              post_coroutine(std::move(exec), std::move(h));
+              detail::post_coroutine(std::move(exec), std::move(h));
       self->coro_->reset_error();
       ch.resume();
     };
