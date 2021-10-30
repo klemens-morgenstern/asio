@@ -73,42 +73,42 @@ struct memory_mapping
 
   // Implement bitmask operations as shown in C++ Std [lib.bitmask.types].
 
-  friend flags operator&(flags x, flags y)
+  friend ASIO_CONSTEXPR flags operator&(flags x, flags y)
   {
     return static_cast<flags>(
             static_cast<unsigned int>(x) & static_cast<unsigned int>(y));
   }
 
-  friend flags operator|(flags x, flags y)
+  friend ASIO_CONSTEXPR flags operator|(flags x, flags y)
   {
     return static_cast<flags>(
             static_cast<unsigned int>(x) | static_cast<unsigned int>(y));
   }
 
-  friend flags operator^(flags x, flags y)
+  friend ASIO_CONSTEXPR flags operator^(flags x, flags y)
   {
     return static_cast<flags>(
             static_cast<unsigned int>(x) ^ static_cast<unsigned int>(y));
   }
 
-  friend flags operator~(flags x)
+  friend ASIO_CONSTEXPR flags operator~(flags x)
   {
     return static_cast<flags>(~static_cast<unsigned int>(x));
   }
 
-  friend flags& operator&=(flags& x, flags y)
+  friend ASIO_CONSTEXPR flags& operator&=(flags& x, flags y)
   {
     x = x & y;
     return x;
   }
 
-  friend flags& operator|=(flags& x, flags y)
+  friend ASIO_CONSTEXPR flags& operator|=(flags& x, flags y)
   {
     x = x | y;
     return x;
   }
 
-  friend flags& operator^=(flags& x, flags y)
+  friend ASIO_CONSTEXPR flags& operator^=(flags& x, flags y)
   {
     x = x ^ y;
     return x;

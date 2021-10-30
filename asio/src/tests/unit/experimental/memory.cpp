@@ -21,7 +21,6 @@
 #include "asio/use_awaitable.hpp"
 
 #include <filesystem>
-#include <sys/mman.h>
 #include "../unit_test.hpp"
 
 #include <iostream>
@@ -42,7 +41,7 @@ asio::awaitable<void> memory_mapping()
 
   co_await r.async_write_some_at(2 * ps, asio::buffer("test-text"), asio::use_awaitable);
 
-  asio::experimental::memory_mapping mm(r, asio::experimental::memory_mapping::read_only, ps, 3 * ps);
+  asio::experimental::memory_mapping mm(r, asio::experimental::memory_mapping::read_write, ps, 3 * ps);
 
   auto p = reinterpret_cast<const char*>(mm.get()) + ps;
 
@@ -62,7 +61,7 @@ asio::awaitable<void> memory_mapping_large()
 
   co_await r.async_write_some_at(2 * ps, asio::buffer("test-text"), asio::use_awaitable);
 
-  asio::experimental::memory_mapping mm(r, asio::experimental::memory_mapping::read_only, ps, 3 * ps);
+  asio::experimental::memory_mapping mm(r, asio::experimental::memory_mapping::read_write, ps, 3 * ps);
 
   auto p = reinterpret_cast<const char*>(mm.get()) + ps;
 
@@ -90,6 +89,7 @@ asio::awaitable<void> memory_private_file()
 
 asio::awaitable<void> memory_shared_file()
 {
+
   ASIO_CHECK(asio::experimental::memory_mapping::large_page_size() != 0);
   ASIO_CHECK(asio::experimental::memory_mapping::page_size() != 0);
   const auto ps = asio::experimental::memory_mapping::large_page_size();
