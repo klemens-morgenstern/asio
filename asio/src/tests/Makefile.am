@@ -184,6 +184,8 @@ noinst_PROGRAMS = \
 	performance/server
 endif
 
+check_PROGRAMS += unit/experimental/memory
+
 if HAVE_CXX14
 check_PROGRAMS += \
 	unit/experimental/deferred
@@ -372,6 +374,9 @@ TESTS = \
 	unit/writable_pipe \
 	unit/write \
 	unit/write_at
+
+TESTS += unit/experimental/memory
+
 
 if HAVE_CXX14
 TESTS += \
@@ -581,6 +586,8 @@ unit_windows_stream_handle_SOURCES = unit/windows/stream_handle.cpp
 unit_writable_pipe_SOURCES = unit/writable_pipe.cpp
 unit_write_SOURCES = unit/write.cpp
 unit_write_at_SOURCES = unit/write_at.cpp
+
+unit_experimental_memory_SOURCES = unit/experimental/memory.cpp
 
 if HAVE_CXX14
 unit_experimental_deferred_SOURCES = unit/experimental/deferred.cpp
