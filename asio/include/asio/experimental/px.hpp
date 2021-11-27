@@ -173,6 +173,16 @@ timer(Executor executor, const std::chrono::duration<Rep, Ratio> dur)
     co_yield 0;
 }
 
+template<typename Chan>
+auto channel_reader(Chan chan) ->
+  coro<typename std::tuple_element<1u, decltype(std::declval<Chan>().async_receive(detail::px_probe{}))>::type,
+  void, typename std::decay_t<Chan>::executor_type>
+{
+  while (chan.is_open())
+    co_yield co_await chan.async_receive(use_coro);
+}
+
+
 template<typename Op, typename ... Args>
 struct op_bind
 {
@@ -188,6 +198,13 @@ constexpr auto operator|(coro<T, void, Executor> c, op_bind<Op, Args...> op)
             {
                 return Op{}(std::move(c), std::move(args)...);
             }, std::move(op.args));
+}
+
+template<typename Chan, typename Op, typename ... Args>
+  requires requires {channel_reader<Chan>(std::declval<Chan>());}
+constexpr auto operator|(Chan && c, op_bind<Op, Args...> op)
+{
+  return channel_reader<Chan>(c) | std::move(op);
 }
 
 struct buffer_t
